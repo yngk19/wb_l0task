@@ -17,5 +17,6 @@ FROM alpine as runner
 COPY --from=build_base /usr/local/src/bin/app /
 COPY ./.env /
 COPY config/local.yaml /config/local.yaml
+COPY ./schema /schema
 
 CMD ["/app"]

@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/yngk19/wb_l0task/internal/config"
 	get_time "github.com/yngk19/wb_l0task/internal/net/http/time"
 	"github.com/yngk19/wb_l0task/internal/repository"
@@ -23,18 +24,16 @@ func main() {
 	log := setupLogger(cfg.Service.Env)
 
 	log.Info("Orders service is starting!", slog.String("env", cfg.Service.Env))
-
-	err := repository.Migrate(cfg.DB)
-	if err != nil {
-		log.Error("Failed make migrations!: %s", err)
-		os.Exit(1)
-	}
-	storage, err := repository.NewDB(cfg.DB, log)
+	_, err := repository.NewDB(cfg.DB, log)
 	if err != nil {
 		log.Error("Failed connection to storage!: %s", err)
 		os.Exit(1)
 	}
-
+	err = repository.Migrate(cfg.DB, log)
+	if err != nil {
+		log.Error("Failed make migrations!: %s", err)
+		os.Exit(1)
+	}
 	//TODO: nats connect
 	r := chi.NewRouter()
 
