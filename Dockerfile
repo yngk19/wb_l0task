@@ -1,15 +1,21 @@
-FROM golang:1.21-alpine
+FROM golang:1.21.4-alpine AS build_base
 
-WORKDIR /app
+RUN apk --no-cache add bash git make gcc gettext musl-dev
 
-COPY go.mod go.sum ./
+WORKDIR /usr/local/src
+
+COPY ["./go.mod", "./go.sum", "./"]
 RUN go mod download
 
-COPY *.go ./
+#build
+COPY . ./
+RUN go build -o ./bin/app cmd/orders/main.go
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o /orders
 
-EXPOSE 8000
+FROM alpine as runner
 
-# Run
-CMD ["/orders"]
+COPY --from=build_base /usr/local/src/bin/app /
+COPY ./.env /
+COPY config/local.yaml /config/local.yaml
+
+CMD ["/app"]

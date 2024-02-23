@@ -1,30 +1,40 @@
 version: '3'
-
-
 services:
   app:
     build: .
     ports:
-      - "8080:8080"
+      - 3000:3000
     restart: always
     depends_on:
       - db
+      - nats
     env_file:
       - ./.env
-
   db:
     image: postgres:14-alpine
     ports:
-      - "5432:5432"
+      - 5432:5432
     env_file:
       - ./.env
     volumes:
       - pgdata:/var/lib/postgresql/data
-    restart: on-failure
+    restart: always
     environment:
       - POSTGRES_DB
       - POSTGRES_USER
       - POSTGRES_PASSWORD
+  nats:
+    image: nats-streaming:latest
+    restart: always
+    ports:
+      - 4222:4222
+    volumes:
+      - "./data:/data"
+    env_file:
+      - ./.env
+    environment:
+      - NATS_STREAMING_CLUSTER_ID
+      - NATS_STREAMING_STORE_TYPE
 
 volumes:
   pgdata:

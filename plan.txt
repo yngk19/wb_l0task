@@ -1,0 +1,18 @@
+TODO:
+1) repo
+2) http
+3) nats
+4) cache
+5) graceful shutdown
+6) client
+7) swagger api
+
+Data validation
+Cache in-memory
+Logging
+Monitoring: optional
+Migrations
+Autotests: optional
+Stress-test: optional
+
+Use tools: WRK, Vegeta - optional
