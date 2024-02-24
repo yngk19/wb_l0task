@@ -22,66 +22,36 @@ func Connect(cfg config.Nats, log *slog.Logger) error {
 	}
 	defer nc.Close()
 	var connectionLostErr error
-	sc, err := stan.Connect(cfg.ClusterID, cfg.ClientID, stan.NatsConn(nc),
-		stan.SetConnectionLostHandler(func(_ stan.Conn, reason error) {
-			connectionLostErr = errors.New(fmt.Sprintf("Connection lost, reason: %v", reason))
-		}))
+	sc, err := stan.Connect(
+		cfg.ClusterID, 
+		cfg.ClientID,
+		stan.NatsConn(nc),
+		stan.SetConnectionLostHandler(ConnectionHandler(&connectionLostErr))
+	)
 	if connectionLostErr != nil {
 		return connectionLostErr
 	}
-	if err != nil {
-		connectionLostErr = errors.New(fmt.Sprintf("Can't connect: %v.\nMake sure a NATS Streaming Server is running at: %s", err, natsURL))
-	}
 	log.Info(fmt.Sprintf("Connected to %s clusterID: [%s] clientID: [%s]\n", natsURL, cfg.ClusterID, cfg.ClientID))
-	startOpt := stan.StartAt(pb.StartPosition_NewOnly)
-	if startSeq != 0 {
-		startOpt = stan.StartAtSequence(startSeq)
-	} else if deliverLast {
-		startOpt = stan.StartWithLastReceived()
-	} else if deliverAll && !newOnly {
-		startOpt = stan.DeliverAllAvailable()
-	} else if startDelta != "" {
-		ago, err := time.ParseDuration(startDelta)
-		if err != nil {
-			sc.Close()
-			log.Fatal(err)
-		}
-		startOpt = stan.StartAtTimeDelta(ago)
-	}
-
-	subj, i := args[0], 0
-	mcb := func(msg *stan.Msg) {
-		i++
-		printMsg(msg, i)
-	}
-
-	sub, err := sc.QueueSubscribe(subj, qgroup, mcb, startOpt, stan.DurableName(durable))
+	sub, err := sc.Subscribe("foo", GetOrder(cfg config.Nats), stan.DeliverAllAvailable()
+	)
 	if err != nil {
-		sc.Close()
-		log.Fatal(err)
+		return err
 	}
-
-	log.Printf("Listening on [%s], clientID=[%s], qgroup=[%s] durable=[%s]\n", subj, clientID, qgroup, durable)
-
-	if showTime {
-		log.SetFlags(log.LstdFlags)
-	}
-
-	// Wait for a SIGINT (perhaps triggered by user with CTRL-C)
-	// Run cleanup when signal is received
-	signalChan := make(chan os.Signal, 1)
-	cleanupDone := make(chan bool)
-	signal.Notify(signalChan, os.Interrupt)
-	go func() {
-		for range signalChan {
-			fmt.Printf("\nReceived an interrupt, unsubscribing and closing connection...\n\n")
-			// Do not unsubscribe a durable on exit, except if asked to.
-			if durable == "" || unsubscribe {
-				sub.Unsubscribe()
-			}
-			sc.Close()
-			cleanupDone <- true
-		}
-	}()
-	<-cleanupDone
+	return nil
 }
+
+func ConnectionHandler(connErr *error) stan.ConnectionLostHandler {
+	return func(_ stan.Conn, reason error) {
+			connErr = &errors.New(fmt.Sprintf("Connection lost, reason: %v", reason))
+	}
+}
+
+func GetOrder() stan.MsgHandler{
+	return func(m *stan.Msg) {
+    	log.With(
+    		slog.String("Received a message from: ", cfg.ClusterID),
+    		slog.String("Subject: ", m.Subject)
+    	)
+	}
+}
+

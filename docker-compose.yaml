@@ -50,6 +50,7 @@ services:
     restart: always
     ports:
       - 4222:4222
+      - 8222:8222
     volumes:
       - "./data:/data"
     env_file:
@@ -57,6 +58,8 @@ services:
     environment:
       - NATS_STREAMING_CLUSTER_ID
       - NATS_STREAMING_STORE_TYPE
+      - NATS_USER
+      - NATS_PASSWORD
 networks:
   db-net:
 volumes:

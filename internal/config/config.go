@@ -11,6 +11,7 @@ import (
 type Config struct {
 	Service
 	DB
+	Nats
 }
 
 type Service struct {
@@ -18,13 +19,23 @@ type Service struct {
 	HTTPServer `yaml:"http_server"`
 }
 
+type Nats struct {
+	Host      string
+	Port      string
+	User      string
+	Password  string
+	ClusterID string
+	StoreType string
+	ClientID  string
+}
+
 type DB struct {
-	Host string
-	Port string
-	User string
-	Password string
-	SSLMode string
-	DBName string
+	Host           string
+	Port           string
+	User           string
+	Password       string
+	SSLMode        string
+	DBName         string
 	MigrationsPath string
 }
 
@@ -34,7 +45,6 @@ type HTTPServer struct {
 	IddleTimeout time.Duration `yaml:"iddle_timeout" env-default:"60s"`
 	Port         int           `yaml:"port" env-default:"80"`
 }
-
 
 func MustLoad() *Config {
 	err := godotenv.Load(".env")
@@ -49,13 +59,29 @@ func MustLoad() *Config {
 	dbPassword := os.Getenv("POSTGRES_PASSWORD")
 	dbSSLMode := os.Getenv("SSL_MODE")
 	dbMigrationsPath := os.Getenv("MIGRATIONS_PATH")
+	natsHost := os.Getenv("NATS_HOST")
+	natsUser := os.Getenv("NATS_USER")
+	natsPassword := os.Getenv("NATS_PASSWORD")
+	natsPort := os.Getenv("NATS_PORT")
+	natsClusterID := os.Getenv("NATS_STREAMING_CLUSTER_ID")
+	natsStoreType := os.Getenv("NATS_STREAMING_STORE_TYPE")
+	natsClientID := os.Getenv("NATS_CLIENT_ID")
+	var nats Nats = Nats{
+		Host:      natsHost,
+		User:      natsUser,
+		Password:  natsPassword,
+		Port:      natsPort,
+		ClusterID: natsClusterID,
+		StoreType: natsStoreType,
+		ClientID:  natsClientID,
+	}
 	var db DB = DB{
-		Host: dbHost,
-		Port: dbPort,
-		User: dbUser,
-		Password: dbPassword,
-		SSLMode: dbSSLMode,
-		DBName: dbName,
+		Host:           dbHost,
+		Port:           dbPort,
+		User:           dbUser,
+		Password:       dbPassword,
+		SSLMode:        dbSSLMode,
+		DBName:         dbName,
 		MigrationsPath: dbMigrationsPath,
 	}
 	if configPath == "" {
@@ -69,8 +95,9 @@ func MustLoad() *Config {
 		log.Fatalf("Cannot read the config!: %s", err)
 	}
 	var cfg Config = Config{
-		DB: db,
+		DB:      db,
 		Service: Service,
+		Nats:    nats,
 	}
 	return &cfg
 }
