@@ -65,7 +65,7 @@ func MustLoad() *Config {
 	natsPort := os.Getenv("NATS_PORT")
 	natsClusterID := os.Getenv("NATS_STREAMING_CLUSTER_ID")
 	natsStoreType := os.Getenv("NATS_STREAMING_STORE_TYPE")
-	natsClientID := os.Getenv("NATS_CLIENT_ID")
+	natsClientID := os.Getenv("CLIENT_ID")
 	var nats Nats = Nats{
 		Host:      natsHost,
 		User:      natsUser,

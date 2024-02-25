@@ -17,6 +17,9 @@ core
 _cgo_*
 _obj
 .env
+plan.txt
+pub
+nats_datastore
 _test
 _testmain.go
 

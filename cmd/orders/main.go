@@ -1,21 +1,31 @@
 package main
 
 import (
+	"context"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/nats-io/stan.go"
 	"github.com/yngk19/wb_l0task/internal/config"
-	"github.com/yngk19/wb_l0task/internal/repository"
-	"github.com/yngk19/wb_l0task/internal/net/nats"
 	get_time "github.com/yngk19/wb_l0task/internal/net/http/time"
+	"github.com/yngk19/wb_l0task/internal/net/nats"
+	"github.com/yngk19/wb_l0task/internal/repository"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
 const (
-	envLocal = "local"
-	envDev   = "dev"
-	envProd  = "prod"
+	envLocal      = "local"
+	envDev        = "dev"
+	envProd       = "prod"
+	retryAttempts = 3
+	retryDelay    = 1 * time.Second
+	ackWait       = 60 * time.Second
+	durableName   = "simple-cluster-dur"
+	maxInflight   = 25
 )
 
 func main() {
@@ -24,18 +34,30 @@ func main() {
 	log := setupLogger(cfg.Service.Env)
 
 	log.Info("Orders service is starting!", slog.String("env", cfg.Service.Env))
-
 	_, err := repository.NewDB(cfg.DB, log)
 	if err != nil {
 		log.Error("Failed connection to storage!: %s", err)
 		os.Exit(1)
 	}
-		
-	err = nats.Connect(cfg.Nats, log)
+	sc, err := nats.NewNatsConnect(cfg, log)
+	defer sc.Close()
 	if err != nil {
-		log.Error("NATS", slog.String("Error", err))
+		log.Error("NATS: ", err)
 	}
-
+	sub, err := sc.QueueSubscribe(
+		"orders",
+		"oders_group",
+		GetOrder(cfg.Nats, log),
+		stan.SetManualAckMode(),
+		stan.AckWait(ackWait),
+		stan.DurableName(durableName),
+		stan.MaxInflight(maxInflight),
+		stan.DeliverAllAvailable(),
+	)
+	if err != nil {
+		log.Error("Nats: ", err)
+	}
+	log.Info("sub is valid: ", slog.Bool("value: ", sub.IsValid()))
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -55,12 +77,16 @@ func main() {
 		ReadTimeout:  cfg.Service.HTTPServer.Timeout,
 		WriteTimeout: cfg.Service.HTTPServer.Timeout,
 	}
-
-	if err := srv.ListenAndServe(); err != nil {
-		log.Error("Failed to start http server!")
-	}
-
+	go func() {
+		if err := srv.ListenAndServe(); err != nil {
+			log.Error("Failed to start http server!")
+		}
+	}()
+	signals := make(chan os.Signal, 2)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGABRT, syscall.SIGTERM)
+	<-signals
 	log.Error("Server stoped!")
+	srv.Shutdown(context.Background())
 }
 
 func setupLogger(env string) *slog.Logger {
@@ -74,4 +100,10 @@ func setupLogger(env string) *slog.Logger {
 		log = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	}
 	return log
+}
+
+func GetOrder(cfg config.Nats, log *slog.Logger) stan.MsgHandler {
+	return func(msg *stan.Msg) {
+		log.Info("Recieved message: ", string(msg.Data))
+	}
 }

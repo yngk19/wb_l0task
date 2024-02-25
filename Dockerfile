@@ -12,7 +12,7 @@ COPY . ./
 RUN go build -o ./bin/app cmd/orders/main.go
 
 
-FROM scratch as runner
+FROM alpine as runner
 
 COPY --from=build_base /usr/local/src/bin/app /
 COPY ./.env /

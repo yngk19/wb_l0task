@@ -47,22 +47,31 @@ services:
       - db
   nats:
     image: nats-streaming:latest
-    restart: always
     ports:
-      - 4222:4222
-      - 8222:8222
-    volumes:
-      - "./data:/data"
-    env_file:
-      - ./.env
-    environment:
-      - NATS_STREAMING_CLUSTER_ID
-      - NATS_STREAMING_STORE_TYPE
-      - NATS_USER
-      - NATS_PASSWORD
+      - "4222:4222"
+      - "8222:8222"
+    networks:
+      - db-net
+    restart: always
+    command: [
+      "-p",
+      "4222",
+      "-hbi",
+      "5s",
+      "-hbt",
+      "5s",
+      "-hbf",
+      "2",
+      "-SD",
+      "-cid",
+      "simple-cluster",
+      "-m",
+      "8222"
+    ]
+
+
 networks:
   db-net:
+
 volumes:
   pgdata:
-
-
