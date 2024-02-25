@@ -2,7 +2,7 @@
 Простой микросервис на стеке технологий golang, postgres и nats-streaming
 
 Реализованы:
-1. In-Memory кэширование
+1. In-Memory кэширование, кэш потокобезопасный!
 2. Graceful shutdown
 3. Migrations
 
