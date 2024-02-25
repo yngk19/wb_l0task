@@ -16,8 +16,8 @@ core
 *.cgo*.c
 _cgo_*
 _obj
-.env
-plan.txt
+/.env
+/plan.txt
 pub
 nats_datastore
 _test

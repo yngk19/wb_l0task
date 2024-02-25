@@ -10,10 +10,8 @@ import (
 
 func Time(log *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		const handler = "handlers.Time"
-
 		log = log.With(
-			slog.String("handler", handler),
+			slog.String("handler", "Time"),
 			slog.String("request_id", middleware.GetReqID(r.Context())),
 		)
 		t := time.Now()

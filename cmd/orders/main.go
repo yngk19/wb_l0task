@@ -6,9 +6,11 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/nats-io/stan.go"
 	"github.com/yngk19/wb_l0task/internal/config"
+	"github.com/yngk19/wb_l0task/internal/net/http/get_order"
 	get_time "github.com/yngk19/wb_l0task/internal/net/http/time"
 	"github.com/yngk19/wb_l0task/internal/net/nats"
 	"github.com/yngk19/wb_l0task/internal/repository"
+	"github.com/yngk19/wb_l0task/internal/service"
 	"log/slog"
 	"net/http"
 	"os"
@@ -34,7 +36,8 @@ func main() {
 	log := setupLogger(cfg.Service.Env)
 
 	log.Info("Orders service is starting!", slog.String("env", cfg.Service.Env))
-	_, err := repository.NewDB(cfg.DB, log)
+	service := service.NewService()
+	repo, err := repository.NewRepository(cfg.DB, log)
 	if err != nil {
 		log.Error("Failed connection to storage!: %s", err)
 		os.Exit(1)
@@ -47,7 +50,7 @@ func main() {
 	sub, err := sc.QueueSubscribe(
 		"orders",
 		"oders_group",
-		GetOrder(cfg.Nats, log),
+		nats.GetOrder(cfg, log, service, *repo),
 		stan.SetManualAckMode(),
 		stan.AckWait(ackWait),
 		stan.DurableName(durableName),
@@ -57,16 +60,14 @@ func main() {
 	if err != nil {
 		log.Error("Nats: ", err)
 	}
-	log.Info("sub is valid: ", slog.Bool("value: ", sub.IsValid()))
 	r := chi.NewRouter()
-
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.URLFormat)
-
 	r.Get("/time", get_time.Time(log))
+	r.Get("/order{id}", get_order.GetOrder(log, repo))
 
 	log.Info("Starting the http server on", slog.Int("port", cfg.Service.HTTPServer.Port))
 
@@ -85,6 +86,7 @@ func main() {
 	signals := make(chan os.Signal, 2)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGABRT, syscall.SIGTERM)
 	<-signals
+	sub.Unsubscribe()
 	log.Error("Server stoped!")
 	srv.Shutdown(context.Background())
 }
@@ -100,10 +102,4 @@ func setupLogger(env string) *slog.Logger {
 		log = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	}
 	return log
-}
-
-func GetOrder(cfg config.Nats, log *slog.Logger) stan.MsgHandler {
-	return func(msg *stan.Msg) {
-		log.Info("Recieved message: ", string(msg.Data))
-	}
 }
