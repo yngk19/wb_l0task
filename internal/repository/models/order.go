@@ -1,6 +1,17 @@
 package models
 
+import (
+	"database/sql/driver"
+	"encoding/json"
+	"errors"
+)
+
 type Order struct {
+	ID   int
+	Data OrderDTO
+}
+
+type OrderDTO struct {
 	OrderUID          string `json:"order_uid" validate:"required"`
 	TrackNumber       string `json:"track_number" validate:"required,uppercase"`
 	Entry             string `json:"entry" validate:"required,uppercase"`
@@ -52,4 +63,17 @@ type Items struct {
 	NmID        uint32 `json:"nm_id" validate:"required,numeric"`
 	Brand       string `json:"brand" validate:"required"`
 	Status      uint32 `json:"status" validate:"required,numeric"`
+}
+
+func (o Order) Value() (driver.Value, error) {
+	return json.Marshal(o)
+}
+
+func (o *Order) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
+	}
+
+	return json.Unmarshal(b, &o)
 }

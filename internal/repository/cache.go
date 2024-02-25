@@ -1,21 +1,21 @@
 package repository
 
 import (
+	"context"
+	"github.com/yngk19/wb_l0task/internal/repository/models"
 	"sync"
-	"time"
 )
 
 type Cache struct {
 	Capacity int
-	TTL      time.Duration
 	Data     map[int]interface{}
 }
 
-func (c *Cache) Serve() {
-	return
+type OrderGetter interface {
+	GetOrdersByLimit(context.Context, int) ([]models.Order, error)
 }
 
-func (c *Cache) Put(id int, value interface{}) {
+func (c *Cache) Put(id int, value interface{}) bool {
 	var mtx sync.Mutex
 	mtx.Lock()
 	defer mtx.Unlock()
@@ -27,7 +27,11 @@ func (c *Cache) Put(id int, value interface{}) {
 			}
 		}
 	}
-	c.Data[id] = value
+	_, ok := c.Data[id]
+	if !ok {
+		c.Data[id] = value
+	}
+	return ok
 }
 
 func (c *Cache) Get(id int) interface{} {
@@ -42,9 +46,19 @@ func (c *Cache) Get(id int) interface{} {
 	return value
 }
 
-func NewCache(cap int, ttl time.Duration) *Cache {
+func NewCache(cap int) *Cache {
 	return &Cache{
 		Capacity: cap,
-		TTL:      ttl,
+		Data:     make(map[int]interface{}),
+	}
+}
+
+func (c *Cache) GetFromDB(ctx context.Context, orderGetter OrderGetter) {
+	orders, err := orderGetter.GetOrdersByLimit(ctx, c.Capacity-len(c.Data))
+	if err != nil {
+		return
+	}
+	for _, order := range orders {
+		c.Put(order.ID, order.Data)
 	}
 }

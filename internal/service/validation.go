@@ -14,8 +14,8 @@ func NewService() *Service {
 	return &Service{}
 }
 
-func (s *Service) OrderIsValid(data []byte, log *slog.Logger) (bool, *models.Order) {
-	var order models.Order
+func (s *Service) OrderIsValid(data []byte, log *slog.Logger) (bool, *models.OrderDTO) {
+	var order models.OrderDTO
 	err := json.Unmarshal(data, &order)
 	if err != nil {
 		log.Info("Validation: message decoding fail", err)

@@ -10,6 +10,7 @@ import (
 	get_time "github.com/yngk19/wb_l0task/internal/net/http/time"
 	"github.com/yngk19/wb_l0task/internal/net/nats"
 	"github.com/yngk19/wb_l0task/internal/repository"
+	postgresql "github.com/yngk19/wb_l0task/internal/repository/client/postgres"
 	"github.com/yngk19/wb_l0task/internal/service"
 	"log/slog"
 	"net/http"
@@ -32,16 +33,17 @@ const (
 
 func main() {
 	cfg := config.MustLoad()
-
 	log := setupLogger(cfg.Service.Env)
-
 	log.Info("Orders service is starting!", slog.String("env", cfg.Service.Env))
 	service := service.NewService()
-	repo, err := repository.NewRepository(cfg.DB, log)
+	postgresqlClient, err := postgresql.NewClient(context.TODO(), cfg.DB, 3)
 	if err != nil {
 		log.Error("Failed connection to storage!: %s", err)
 		os.Exit(1)
 	}
+	repo := repository.NewRepository(postgresqlClient, log)
+	cache := repository.NewCache(10)
+	cache.GetFromDB(context.TODO(), repo)
 	sc, err := nats.NewNatsConnect(cfg, log)
 	defer sc.Close()
 	if err != nil {
@@ -50,7 +52,7 @@ func main() {
 	sub, err := sc.QueueSubscribe(
 		"orders",
 		"oders_group",
-		nats.GetOrder(cfg, log, service, *repo),
+		nats.GetOrder(context.TODO(), cfg, log, service, repo, cache),
 		stan.SetManualAckMode(),
 		stan.AckWait(ackWait),
 		stan.DurableName(durableName),
@@ -67,10 +69,8 @@ func main() {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.URLFormat)
 	r.Get("/time", get_time.Time(log))
-	r.Get("/order{id}", get_order.GetOrder(log, repo))
-
+	r.Get("/order={id}", get_order.GetOrder(context.TODO(), log, repo, cache))
 	log.Info("Starting the http server on", slog.Int("port", cfg.Service.HTTPServer.Port))
-
 	srv := &http.Server{
 		Addr:         cfg.Service.HTTPServer.Address,
 		Handler:      r,
