@@ -7,6 +7,7 @@ import (
 )
 
 type Cache struct {
+	mtx sync.RWMutex
 	Capacity int
 	Data     map[int]interface{}
 }
@@ -16,9 +17,8 @@ type OrderGetter interface {
 }
 
 func (c *Cache) Put(id int, value interface{}) bool {
-	var mtx sync.Mutex
-	mtx.Lock()
-	defer mtx.Unlock()
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
 	if len(c.Data) == c.Capacity {
 		for key, _ := range c.Data {
 			if key != id {
@@ -35,9 +35,8 @@ func (c *Cache) Put(id int, value interface{}) bool {
 }
 
 func (c *Cache) Get(id int) interface{} {
-	var mtx sync.Mutex
-	mtx.Lock()
-	defer mtx.Unlock()
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
 	value, ok := c.Data[id]
 	if !ok {
 		return nil
@@ -48,6 +47,7 @@ func (c *Cache) Get(id int) interface{} {
 
 func NewCache(cap int) *Cache {
 	return &Cache{
+		mtx: sync.RWMutex{},
 		Capacity: cap,
 		Data:     make(map[int]interface{}),
 	}
